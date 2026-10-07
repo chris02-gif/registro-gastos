@@ -290,6 +290,41 @@
       background: var(--dot, var(--muted));
     }
 
+    /* ---------- Resumen por meses ---------- */
+    .stack { display: grid; gap: 20px; align-content: start; min-width: 0; }
+    .months-card h2 { margin-bottom: 4px; }
+    .month-list {
+      list-style: none; margin: 0; padding: 0;
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px;
+    }
+    .month-row {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      column-gap: 16px;
+      row-gap: 8px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    /* Todas las filas comparten la columna de importes, así las barras tienen el mismo fondo */
+    @supports (grid-template-columns: subgrid) {
+      .month-row { grid-template-columns: subgrid; }
+    }
+    .month-row:last-child { border-bottom: 0; padding-bottom: 0; }
+    .month-name { font-weight: 600; }
+    .month-total { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+    .month-count { font-size: .85rem; color: var(--muted); text-align: right; white-space: nowrap; }
+    .month-bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+    .month-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+    .tag {
+      display: inline-block; margin-left: 6px; padding: 1px 8px;
+      border: 1px solid var(--border); border-radius: 999px;
+      background: var(--surface-2); color: var(--muted);
+      font-size: .7rem; font-weight: 600; letter-spacing: .04em;
+      text-transform: uppercase; vertical-align: 2px;
+    }
+
     @keyframes flash { from { background-color: var(--flash); } to { background-color: transparent; } }
     .table tbody tr.is-new { animation: flash 2s ease-out; }
 
@@ -424,30 +459,37 @@
         </form>
       </section>
 
-      <section class="card history-card" aria-labelledby="history-title">
-        <div class="history-head">
-          <h2 id="history-title" tabindex="-1">Historial de gastos</h2>
-          <button type="button" id="clear-all" class="btn btn-outline-danger">Borrar todos los gastos</button>
-        </div>
+      <div class="stack">
+        <section class="card months-card" id="months-card" aria-labelledby="months-title" hidden>
+          <h2 id="months-title">Resumen por meses</h2>
+          <ul class="month-list" id="month-list"></ul>
+        </section>
 
-        <div id="empty-state" class="empty">
-          <strong>Aún no hay gastos</strong>
-          Añade el primero con el formulario.
-        </div>
+        <section class="card history-card" aria-labelledby="history-title">
+          <div class="history-head">
+            <h2 id="history-title" tabindex="-1">Historial de gastos</h2>
+            <button type="button" id="clear-all" class="btn btn-outline-danger">Borrar todos los gastos</button>
+          </div>
 
-        <table id="expense-table" class="table" hidden>
-          <thead>
-            <tr>
-              <th scope="col">Fecha</th>
-              <th scope="col">Concepto</th>
-              <th scope="col">Categoría</th>
-              <th scope="col" class="num">Importe</th>
-              <th scope="col"><span class="sr-only">Acciones</span></th>
-            </tr>
-          </thead>
-          <tbody id="expense-body"></tbody>
-        </table>
-      </section>
+          <div id="empty-state" class="empty">
+            <strong>Aún no hay gastos</strong>
+            Añade el primero con el formulario.
+          </div>
+
+          <table id="expense-table" class="table" hidden>
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Concepto</th>
+                <th scope="col">Categoría</th>
+                <th scope="col" class="num">Importe</th>
+                <th scope="col"><span class="sr-only">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody id="expense-body"></tbody>
+          </table>
+        </section>
+      </div>
     </main>
 
     <footer class="app-footer">Los datos se guardan solo en este dispositivo.</footer>
@@ -493,11 +535,14 @@
       const countAllEl = $('count-all');
       const totalMonthEl = $('total-month');
       const monthMetaEl = $('month-meta');
+      const monthsCard = $('months-card');
+      const monthList = $('month-list');
 
       // Cada gasto: { id, cents, concept, date: 'AAAA-MM-DD', category, createdAt }
       // El importe se guarda en céntimos (entero) para evitar errores de redondeo al sumar.
       let expenses = [];
       let highlightId = null;
+      let today = ''; // 'AAAA-MM-DD' de la última vez que se comprobó el día
 
       // ---------- Utilidades ----------
       const pad = (n) => String(n).padStart(2, '0');
@@ -613,24 +658,70 @@
         return tr;
       }
 
+      function renderMonths(byMonth, currentKey) {
+        // Del mes más reciente al más antiguo; la barra es relativa al mes con más gasto
+        const months = [...byMonth.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+        const maxCents = Math.max(0, ...months.map(([, m]) => m.cents));
+
+        const frag = document.createDocumentFragment();
+        for (const [key, m] of months) {
+          const [y, mo] = key.split('-').map(Number);
+          const li = document.createElement('li');
+          li.className = 'month-row';
+
+          const name = document.createElement('span');
+          name.className = 'month-name';
+          name.textContent = capitalize(monthYear.format(new Date(y, mo - 1, 1)));
+          if (key === currentKey) {
+            const tag = document.createElement('span');
+            tag.className = 'tag';
+            tag.textContent = 'En curso';
+            name.append(tag);
+          }
+
+          const total = document.createElement('span');
+          total.className = 'month-total';
+          total.textContent = formatMoney(m.cents);
+
+          const bar = document.createElement('div');
+          bar.className = 'month-bar';
+          bar.setAttribute('aria-hidden', 'true');
+          const fill = document.createElement('span');
+          fill.style.width = `${Math.max(2, (m.cents / maxCents) * 100)}%`;
+          bar.append(fill);
+
+          const count = document.createElement('span');
+          count.className = 'month-count';
+          count.textContent = plural(m.count, 'gasto', 'gastos');
+
+          li.append(name, total, bar, count);
+          frag.append(li);
+        }
+        monthList.replaceChildren(frag);
+        monthsCard.hidden = months.length === 0;
+      }
+
       function render() {
         const now = new Date();
         const monthKey = toISODate(now).slice(0, 7); // 'AAAA-MM'
 
+        // Totales por mes: 'AAAA-MM' → { cents, count }
+        const byMonth = new Map();
         let totalCents = 0;
-        let monthCents = 0;
-        let monthCount = 0;
         for (const e of expenses) {
           totalCents += e.cents;
-          if (e.date.startsWith(monthKey)) {
-            monthCents += e.cents;
-            monthCount++;
-          }
+          const key = e.date.slice(0, 7);
+          const m = byMonth.get(key) || { cents: 0, count: 0 };
+          m.cents += e.cents;
+          m.count++;
+          byMonth.set(key, m);
         }
+        const current = byMonth.get(monthKey) || { cents: 0, count: 0 };
 
-        totalMonthEl.textContent = formatMoney(monthCents);
+        totalMonthEl.textContent = formatMoney(current.cents);
         monthMetaEl.textContent =
-          `${capitalize(monthYear.format(now))} · ${monthCount ? plural(monthCount, 'gasto', 'gastos') : 'sin gastos'}`;
+          `${capitalize(monthYear.format(now))} · ${current.count ? plural(current.count, 'gasto', 'gastos') : 'sin gastos'}`;
+        renderMonths(byMonth, monthKey);
         totalAllEl.textContent = formatMoney(totalCents);
         countAllEl.textContent = expenses.length
           ? plural(expenses.length, 'gasto registrado', 'gastos registrados')
@@ -747,14 +838,29 @@
         }
       });
 
-      // Recalcula el total mensual al volver a la pestaña (por si ha cambiado el mes)
+      // Si cambia el día con la app abierta o en segundo plano, la fecha del formulario pasa
+      // a hoy (salvo que se haya elegido otra a mano) y se recalculan los totales del mes.
+      function checkNewDay() {
+        const now = toISODate(new Date());
+        if (now === today) return;
+        if (fields.date.value === today) {
+          fields.date.value = now;
+          setError('date', '');
+        }
+        today = now;
+        render();
+      }
       document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) render();
+        if (!document.hidden) checkNewDay();
       });
+      window.addEventListener('pageshow', checkNewDay);
+      window.addEventListener('focus', checkNewDay);
+      setInterval(checkNewDay, 60 * 1000);
 
       // ---------- Inicio ----------
       CATEGORIES.forEach((c) => fields.category.add(new Option(c.name, c.name)));
-      fields.date.value = toISODate(new Date());
+      today = toISODate(new Date());
+      fields.date.value = today;
       expenses = load();
       render();
 
