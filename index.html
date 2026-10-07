@@ -206,10 +206,6 @@
       background-size: 16px;
     }
 
-    input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
-    input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-
     .input-affix { position: relative; }
     .input-affix .control { padding-right: 36px; }
     .affix {
@@ -390,8 +386,10 @@
           <div class="field">
             <label for="amount">Importe</label>
             <div class="input-affix">
-              <input class="control" id="amount" name="amount" type="number"
-                     inputmode="decimal" step="0.01" min="0.01" placeholder="0,00"
+              <!-- type="text" + inputmode="decimal": muestra el teclado numérico con coma
+                   (type="number" en Safari rechaza "12,50") -->
+              <input class="control" id="amount" name="amount" type="text"
+                     inputmode="decimal" autocomplete="off" maxlength="20" placeholder="0,00"
                      required aria-describedby="amount-error">
               <span class="affix" aria-hidden="true">€</span>
             </div>
@@ -511,6 +509,19 @@
       };
       const isValidISODate = (s) =>
         typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && toISODate(fromISODate(s)) === s;
+
+      // Acepta coma o punto decimal y separador de miles:
+      // "12,50", "12.5", ",5", "1.234,56", "1,234.56", "8 €". Devuelve NaN si no es un número.
+      // Una coma sola siempre es decimal ("1,234" → 1,234 y lo rechaza la validación de decimales).
+      function parseAmount(raw) {
+        const s = raw.replace(/[\s€]/g, '');
+        let normalized;
+        if (/^[1-9]\d{0,2}(\.\d{3})+(,\d*)?$/.test(s)) normalized = s.replace(/\./g, '').replace(',', '.');
+        else if (/^[1-9]\d{0,2}(,\d{3})+\.\d*$/.test(s)) normalized = s.replace(/,/g, '');
+        else if (/^(\d+([.,]\d*)?|[.,]\d+)$/.test(s)) normalized = s.replace(',', '.');
+        else return NaN;
+        return Number(normalized);
+      }
 
       const formatMoney = (cents) => money.format(cents / 100);
       const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -653,10 +664,10 @@
         const errors = {};
 
         const amountRaw = fields.amount.value.trim();
-        const amount = Number(amountRaw);
-        if (fields.amount.validity.badInput) errors.amount = 'Introduce un número válido.';
-        else if (amountRaw === '') errors.amount = 'Indica el importe del gasto.';
-        else if (!Number.isFinite(amount) || amount < 0.01) errors.amount = 'El importe debe ser de al menos 0,01 €.';
+        const amount = parseAmount(amountRaw);
+        if (amountRaw === '') errors.amount = 'Indica el importe del gasto.';
+        else if (!Number.isFinite(amount)) errors.amount = 'Introduce un número válido, por ejemplo 12,50.';
+        else if (amount < 0.01) errors.amount = 'El importe debe ser de al menos 0,01 €.';
         else if (amount > MAX_AMOUNT) errors.amount = 'El importe es demasiado alto.';
         else if (Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6) errors.amount = 'Usa como máximo dos decimales.';
 
