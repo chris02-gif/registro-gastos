@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Gastos mensuales</title>
+
+  <!-- Instalación en la pantalla de inicio (iPhone / Android) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Gastos">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <style>
+    /* ---------- Tema ---------- */
+    :root {
+      --bg: #f5f6f8;
+      --surface: #ffffff;
+      --surface-2: #f2f4f7;
+      --border: #e5e7eb;
+      --border-strong: #cfd4dc;
+      --text: #1d2129;
+      --muted: #6b7280;
+      --accent: #2b3446;
+      --accent-hover: #1e2533;
+      --accent-contrast: #ffffff;
+      --hero-bg: #2b3446;
+      --hero-text: #ffffff;
+      --hero-muted: rgba(255, 255, 255, .72);
+      --danger: #c0352b;
+      --danger-bg: #fdf1f0;
+      --ring: rgba(43, 52, 70, .18);
+      --ring-danger: rgba(192, 53, 43, .18);
+      --flash: rgba(43, 52, 70, .10);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 6px 20px rgba(16, 24, 40, .06);
+      color-scheme: light dark;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1115;
+        --surface: #181b21;
+        --surface-2: #20242b;
+        --border: #2a2f37;
+        --border-strong: #3a404a;
+        --text: #e7e9ed;
+        --muted: #9198a3;
+        --accent: #e7e9ed;
+        --accent-hover: #ffffff;
+        --accent-contrast: #111318;
+        --hero-bg: #252c3a;
+        --hero-text: #f4f5f7;
+        --hero-muted: rgba(244, 245, 247, .7);
+        --danger: #f2766b;
+        --danger-bg: rgba(242, 118, 107, .1);
+        --ring: rgba(231, 233, 237, .2);
+        --ring-danger: rgba(242, 118, 107, .25);
+        --flash: rgba(255, 255, 255, .07);
+        --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
+      }
+    }
+
+    /* ---------- Base ---------- */
+    *, *::before, *::after { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -webkit-text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation; /* evita el zoom por doble toque */
+    }
+
+    h1, h2, p { margin: 0; }
+    button, input, select { font: inherit; color: inherit; }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+
+    /* ---------- Estructura ---------- */
+    /* env(safe-area-inset-*) respeta la muesca y la barra de inicio del iPhone */
+    .app {
+      max-width: 1120px; margin: 0 auto;
+      padding:
+        calc(24px + env(safe-area-inset-top))
+        calc(16px + env(safe-area-inset-right))
+        calc(40px + env(safe-area-inset-bottom))
+        calc(16px + env(safe-area-inset-left));
+    }
+
+    .app-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+    .logo {
+      flex: none; display: grid; place-items: center;
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--hero-bg); color: var(--hero-text);
+      font-size: 1.25rem; font-weight: 700; box-shadow: var(--shadow);
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+    .subtitle { color: var(--muted); font-size: .95rem; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+    h2 { font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em; }
+
+    .notice {
+      margin-bottom: 20px; padding: 12px 16px;
+      border: 1px solid var(--danger); border-radius: var(--radius-sm);
+      background: var(--danger-bg); color: var(--danger); font-size: .9rem;
+    }
+
+    /* ---------- Resumen ---------- */
+    .summary { display: grid; gap: 16px; grid-template-columns: 1fr; margin-bottom: 20px; }
+    .stat { display: grid; gap: 4px; }
+    .stat-label {
+      font-size: .8rem; font-weight: 600; letter-spacing: .04em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .stat-value {
+      font-size: clamp(1.75rem, 1.2rem + 2vw, 2.25rem);
+      font-weight: 700; letter-spacing: -.02em; line-height: 1.15;
+      font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+    }
+    .stat-meta { font-size: .875rem; color: var(--muted); }
+    .stat--hero { background: var(--hero-bg); border-color: transparent; color: var(--hero-text); }
+    .stat--hero .stat-label, .stat--hero .stat-meta { color: var(--hero-muted); }
+
+    /* ---------- Formulario ---------- */
+    .layout { display: grid; gap: 20px; }
+    .form-card h2 { margin-bottom: 16px; }
+    .form { display: grid; gap: 14px; }
+    .field-row { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+    .field { display: grid; gap: 6px; align-content: start; }
+    label { font-size: .875rem; font-weight: 600; }
+
+    .control {
+      width: 100%;
+      min-height: 46px;
+      padding: 10px 14px;
+      font-size: 1rem; /* 16px evita el zoom automático en iOS */
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .control::placeholder { color: var(--muted); opacity: .7; }
+    .control:hover { border-color: var(--border-strong); }
+    .control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--ring); }
+    .control[type="date"] { text-align: left; }
+    .control[type="date"]::-webkit-date-and-time-value { text-align: left; }
+
+    select.control {
+      appearance: none; -webkit-appearance: none;
+      padding-right: 40px; cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a919c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      background-size: 16px;
+    }
+
+    input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+    .input-affix { position: relative; }
+    .input-affix .control { padding-right: 36px; }
+    .affix {
+      position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); pointer-events: none;
+    }
+
+    .has-error .control { border-color: var(--danger); }
+    .has-error .control:focus { box-shadow: 0 0 0 4px var(--ring-danger); }
+    .error { font-size: .8rem; color: var(--danger); }
+    .error:empty { display: none; }
+
+    /* ---------- Botones ---------- */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      min-height: 46px; padding: 10px 18px;
+      border: 1px solid transparent; border-radius: var(--radius-sm);
+      font-size: .95rem; font-weight: 600; cursor: pointer;
+      transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .05s ease;
+    }
+    .btn:active:not(:disabled) { transform: translateY(1px); }
+    .btn:focus-visible, .icon-btn:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--ring); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    .btn-primary { width: 100%; margin-top: 4px; background: var(--accent); color: var(--accent-contrast); }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    .btn-outline-danger {
+      min-height: 38px; padding: 6px 14px; font-size: .85rem;
+      background: transparent; color: var(--danger); border-color: var(--border);
+    }
+    .btn-outline-danger:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger); }
+    .btn-outline-danger:focus-visible { box-shadow: 0 0 0 4px var(--ring-danger); }
+
+    .icon-btn {
+      display: inline-grid; place-items: center;
+      width: 36px; height: 36px; padding: 0;
+      border: 0; border-radius: 10px;
+      background: transparent; color: var(--muted); cursor: pointer;
+      transition: background-color .15s ease, color .15s ease;
+    }
+    .icon-btn:hover { background: var(--danger-bg); color: var(--danger); }
+
+    /* ---------- Historial ---------- */
+    .history-head {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px; margin-bottom: 12px;
+    }
+    .history-head h2:focus { outline: none; }
+
+    .empty {
+      padding: 40px 16px; text-align: center; color: var(--muted);
+      border: 1px dashed var(--border); border-radius: var(--radius-sm);
+    }
+    .empty strong { display: block; margin-bottom: 4px; color: var(--text); font-weight: 600; }
+
+    .table { width: 100%; border-collapse: collapse; }
+    .table th {
+      padding: 10px 12px; text-align: left; white-space: nowrap;
+      font-size: .75rem; font-weight: 600; letter-spacing: .05em;
+      text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .table td { padding: 14px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .table tbody tr:last-child td { border-bottom: 0; }
+    .table tbody tr { transition: background-color .15s ease; }
+    .table tbody tr:hover { background: var(--surface-2); }
+    .table .num { text-align: right; }
+
+    .c-date { white-space: nowrap; color: var(--muted); font-size: .9rem; }
+    .c-concept { font-weight: 500; overflow-wrap: anywhere; }
+    .c-amount { text-align: right; white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .c-action { width: 1%; text-align: right; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px;
+      background: var(--surface-2); font-size: .8rem; font-weight: 500; white-space: nowrap;
+    }
+    .badge::before {
+      content: ""; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--dot, var(--muted));
+    }
+
+    @keyframes flash { from { background-color: var(--flash); } to { background-color: transparent; } }
+    .table tbody tr.is-new { animation: flash 2s ease-out; }
+
+    .app-footer { margin-top: 28px; text-align: center; color: var(--muted); font-size: .8rem; }
+
+    /* ---------- Responsive ---------- */
+    @media (min-width: 520px) {
+      .summary { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (min-width: 640px) {
+      .app {
+        padding:
+          calc(40px + env(safe-area-inset-top))
+          calc(24px + env(safe-area-inset-right))
+          calc(56px + env(safe-area-inset-bottom))
+          calc(24px + env(safe-area-inset-left));
+      }
+      .card { padding: 24px; }
+      h1 { font-size: 1.75rem; }
+    }
+
+    @media (min-width: 900px) {
+      .layout { grid-template-columns: 340px minmax(0, 1fr); align-items: start; }
+      .form-card { position: sticky; top: 24px; }
+    }
+
+    /* En móvil cada fila de la tabla se convierte en una tarjeta compacta */
+    @media (max-width: 640px) {
+      .table thead {
+        position: absolute; width: 1px; height: 1px;
+        overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+      }
+      .table, .table tbody { display: block; }
+      .table tbody tr {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas:
+          "concept concept amount"
+          "date    cat     action";
+        align-items: center;
+        column-gap: 10px;
+        row-gap: 6px;
+        padding: 12px 2px;
+        border-bottom: 1px solid var(--border);
+      }
+      .table tbody tr:last-child { border-bottom: 0; }
+      .table td { display: block; padding: 0; border: 0; }
+      .c-concept { grid-area: concept; }
+      .c-amount { grid-area: amount; }
+      .c-date { grid-area: date; font-size: .85rem; }
+      .c-cat { grid-area: cat; }
+      .c-action { grid-area: action; width: auto; justify-self: end; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="logo" aria-hidden="true">€</div>
+      <div>
+        <h1>Gastos mensuales</h1>
+        <p class="subtitle">Registra tus gastos y controla en qué se va tu dinero.</p>
+      </div>
+    </header>
+
+    <div id="storage-warning" class="notice" role="alert" hidden>
+      No se pueden guardar los datos en este navegador (almacenamiento bloqueado o lleno).
+      Los gastos se perderán al recargar la página.
+    </div>
+
+    <section class="summary" aria-label="Resumen de gastos">
+      <article class="card stat stat--hero">
+        <p class="stat-label">Total del mes actual</p>
+        <p class="stat-value" id="total-month">0,00 €</p>
+        <p class="stat-meta" id="month-meta">&nbsp;</p>
+      </article>
+      <article class="card stat">
+        <p class="stat-label">Gasto total acumulado</p>
+        <p class="stat-value" id="total-all">0,00 €</p>
+        <p class="stat-meta" id="count-all">&nbsp;</p>
+      </article>
+    </section>
+
+    <main class="layout">
+      <section class="card form-card" aria-labelledby="form-title">
+        <h2 id="form-title">Nuevo gasto</h2>
+
+        <form id="expense-form" class="form" novalidate>
+          <div class="field">
+            <label for="amount">Importe</label>
+            <div class="input-affix">
+              <input class="control" id="amount" name="amount" type="number"
+                     inputmode="decimal" step="0.01" min="0.01" placeholder="0,00"
+                     required aria-describedby="amount-error">
+              <span class="affix" aria-hidden="true">€</span>
+            </div>
+            <p class="error" id="amount-error"></p>
+          </div>
+
+          <div class="field">
+            <label for="concept">Concepto</label>
+            <input class="control" id="concept" name="concept" type="text"
+                   maxlength="80" placeholder="Ej. Compra en el supermercado"
+                   autocomplete="off" required aria-describedby="concept-error">
+            <p class="error" id="concept-error"></p>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="date">Fecha</label>
+              <input class="control" id="date" name="date" type="date"
+                     required aria-describedby="date-error">
+              <p class="error" id="date-error"></p>
+            </div>
+
+            <div class="field">
+              <label for="category">Categoría</label>
+              <select class="control" id="category" name="category"
+                      required aria-describedby="category-error"></select>
+              <p class="error" id="category-error"></p>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Añadir gasto</button>
+        </form>
+      </section>
+
+      <section class="card history-card" aria-labelledby="history-title">
+        <div class="history-head">
+          <h2 id="history-title" tabindex="-1">Historial de gastos</h2>
+          <button type="button" id="clear-all" class="btn btn-outline-danger">Borrar todos los gastos</button>
+        </div>
+
+        <div id="empty-state" class="empty">
+          <strong>Aún no hay gastos</strong>
+          Añade el primero con el formulario.
+        </div>
+
+        <table id="expense-table" class="table" hidden>
+          <thead>
+            <tr>
+              <th scope="col">Fecha</th>
+              <th scope="col">Concepto</th>
+              <th scope="col">Categoría</th>
+              <th scope="col" class="num">Importe</th>
+              <th scope="col"><span class="sr-only">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody id="expense-body"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <footer class="app-footer">Los datos se guardan solo en este dispositivo.</footer>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      // ---------- Configuración ----------
+      const STORAGE_KEY = 'gastos-mensuales.v1';
+      const MAX_AMOUNT = 1e9;
+      const CATEGORIES = [
+        { name: 'Alimentación', color: '#3f9b6e' },
+        { name: 'Vivienda',     color: '#4c6ef5' },
+        { name: 'Transporte',   color: '#d9921a' },
+        { name: 'Ocio',         color: '#c2459f' },
+        { name: 'Otros',        color: '#8a919c' },
+      ];
+      const FIELD_ORDER = ['amount', 'concept', 'date', 'category'];
+
+      const money = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+      const shortDate = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+      const monthYear = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' });
+
+      const TRASH_ICON =
+        '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/>' +
+        '<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>' +
+        '<path d="M10 11v6M14 11v6"/></svg>';
+
+      // ---------- Referencias al DOM ----------
+      const $ = (id) => document.getElementById(id);
+      const form = $('expense-form');
+      const fields = { amount: $('amount'), concept: $('concept'), date: $('date'), category: $('category') };
+      const tbody = $('expense-body');
+      const table = $('expense-table');
+      const emptyState = $('empty-state');
+      const clearBtn = $('clear-all');
+      const historyTitle = $('history-title');
+      const storageWarning = $('storage-warning');
+      const totalAllEl = $('total-all');
+      const countAllEl = $('count-all');
+      const totalMonthEl = $('total-month');
+      const monthMetaEl = $('month-meta');
+
+      // Cada gasto: { id, cents, concept, date: 'AAAA-MM-DD', category, createdAt }
+      // El importe se guarda en céntimos (entero) para evitar errores de redondeo al sumar.
+      let expenses = [];
+      let highlightId = null;
+
+      // ---------- Utilidades ----------
+      const pad = (n) => String(n).padStart(2, '0');
+      // Fechas en hora local (toISOString usaría UTC y podría desplazar el día)
+      const toISODate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const fromISODate = (s) => {
+        const [y, m, d] = s.split('-').map(Number);
+        return new Date(y, m - 1, d);
+      };
+      const isValidISODate = (s) =>
+        typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && toISODate(fromISODate(s)) === s;
+
+      const formatMoney = (cents) => money.format(cents / 100);
+      const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+      const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+      const categoryColor = (name) =>
+        (CATEGORIES.find((c) => c.name === name) || CATEGORIES[CATEGORIES.length - 1]).color;
+      const newId = () =>
+        window.crypto && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : Date.now().toString(36) + Math.random().toString(36).slice(2);
+
+      // ---------- Persistencia ----------
+      const isValidExpense = (e) =>
+        e && typeof e === 'object' &&
+        typeof e.id === 'string' &&
+        Number.isInteger(e.cents) && e.cents > 0 &&
+        typeof e.concept === 'string' &&
+        isValidISODate(e.date) &&
+        typeof e.category === 'string';
+
+      function load() {
+        let raw;
+        try {
+          raw = localStorage.getItem(STORAGE_KEY);
+        } catch {
+          storageWarning.hidden = false;
+          return [];
+        }
+        if (!raw) return [];
+        try {
+          const data = JSON.parse(raw);
+          return Array.isArray(data) ? data.filter(isValidExpense) : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function save() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+          storageWarning.hidden = true;
+        } catch {
+          storageWarning.hidden = false;
+        }
+      }
+
+      // ---------- Renderizado ----------
+      function cell(className, text) {
+        const td = document.createElement('td');
+        td.className = className;
+        if (text != null) td.textContent = text;
+        return td;
+      }
+
+      function buildRow(e) {
+        const tr = document.createElement('tr');
+        if (e.id === highlightId) tr.className = 'is-new';
+
+        const tdDate = cell('c-date');
+        const time = document.createElement('time');
+        time.dateTime = e.date;
+        time.textContent = shortDate.format(fromISODate(e.date));
+        tdDate.append(time);
+
+        const tdCat = cell('c-cat');
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.style.setProperty('--dot', categoryColor(e.category));
+        badge.textContent = e.category;
+        tdCat.append(badge);
+
+        const tdAction = cell('c-action');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'icon-btn';
+        btn.dataset.id = e.id;
+        btn.title = 'Eliminar gasto';
+        btn.setAttribute('aria-label', `Eliminar gasto: ${e.concept}`);
+        btn.innerHTML = TRASH_ICON;
+        tdAction.append(btn);
+
+        tr.append(
+          tdDate,
+          cell('c-concept', e.concept),
+          tdCat,
+          cell('c-amount', formatMoney(e.cents)),
+          tdAction
+        );
+        return tr;
+      }
+
+      function render() {
+        const now = new Date();
+        const monthKey = toISODate(now).slice(0, 7); // 'AAAA-MM'
+
+        let totalCents = 0;
+        let monthCents = 0;
+        let monthCount = 0;
+        for (const e of expenses) {
+          totalCents += e.cents;
+          if (e.date.startsWith(monthKey)) {
+            monthCents += e.cents;
+            monthCount++;
+          }
+        }
+
+        totalMonthEl.textContent = formatMoney(monthCents);
+        monthMetaEl.textContent =
+          `${capitalize(monthYear.format(now))} · ${monthCount ? plural(monthCount, 'gasto', 'gastos') : 'sin gastos'}`;
+        totalAllEl.textContent = formatMoney(totalCents);
+        countAllEl.textContent = expenses.length
+          ? plural(expenses.length, 'gasto registrado', 'gastos registrados')
+          : 'Sin gastos registrados';
+
+        // Más recientes primero; a igual fecha, el último añadido arriba
+        const sorted = [...expenses].sort(
+          (a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0)
+        );
+        const frag = document.createDocumentFragment();
+        sorted.forEach((e) => frag.append(buildRow(e)));
+        tbody.replaceChildren(frag);
+        highlightId = null;
+
+        const isEmpty = expenses.length === 0;
+        table.hidden = isEmpty;
+        emptyState.hidden = !isEmpty;
+        clearBtn.disabled = isEmpty;
+      }
+
+      // ---------- Validación ----------
+      function setError(name, message) {
+        const input = fields[name];
+        $(`${name}-error`).textContent = message || '';
+        input.closest('.field').classList.toggle('has-error', Boolean(message));
+        if (message) input.setAttribute('aria-invalid', 'true');
+        else input.removeAttribute('aria-invalid');
+      }
+
+      function validate() {
+        const errors = {};
+
+        const amountRaw = fields.amount.value.trim();
+        const amount = Number(amountRaw);
+        if (fields.amount.validity.badInput) errors.amount = 'Introduce un número válido.';
+        else if (amountRaw === '') errors.amount = 'Indica el importe del gasto.';
+        else if (!Number.isFinite(amount) || amount < 0.01) errors.amount = 'El importe debe ser de al menos 0,01 €.';
+        else if (amount > MAX_AMOUNT) errors.amount = 'El importe es demasiado alto.';
+        else if (Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6) errors.amount = 'Usa como máximo dos decimales.';
+
+        const concept = fields.concept.value.trim().replace(/\s+/g, ' ');
+        if (!concept) errors.concept = 'Escribe un concepto o descripción.';
+
+        const date = fields.date.value;
+        if (!date) errors.date = 'Selecciona una fecha.';
+        else if (!isValidISODate(date)) errors.date = 'La fecha no es válida.';
+
+        const category = fields.category.value;
+        if (!CATEGORIES.some((c) => c.name === category)) errors.category = 'Selecciona una categoría.';
+
+        return { errors, expense: { cents: Math.round(amount * 100), concept, date, category } };
+      }
+
+      // ---------- Eventos ----------
+      form.addEventListener('submit', (ev) => {
+        ev.preventDefault();
+
+        const { errors, expense } = validate();
+        FIELD_ORDER.forEach((name) => setError(name, errors[name]));
+        const firstInvalid = FIELD_ORDER.find((name) => errors[name]);
+        if (firstInvalid) {
+          fields[firstInvalid].focus();
+          return;
+        }
+
+        const item = { id: newId(), ...expense, createdAt: Date.now() };
+        expenses.push(item);
+        highlightId = item.id;
+        save();
+        render();
+
+        // Se mantienen fecha y categoría para agilizar el registro de varios gastos seguidos
+        fields.amount.value = '';
+        fields.concept.value = '';
+        fields.amount.focus();
+      });
+
+      // Quita el error de un campo en cuanto el usuario lo modifica
+      FIELD_ORDER.forEach((name) => {
+        fields[name].addEventListener('input', () => setError(name, ''));
+      });
+
+      tbody.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('button[data-id]');
+        if (!btn) return;
+
+        const index = [...tbody.querySelectorAll('button[data-id]')].indexOf(btn);
+        expenses = expenses.filter((e) => e.id !== btn.dataset.id);
+        save();
+        render();
+
+        // Mantiene el foco en una posición lógica tras eliminar la fila
+        const remaining = tbody.querySelectorAll('button[data-id]');
+        (remaining[Math.min(index, remaining.length - 1)] || historyTitle).focus();
+      });
+
+      clearBtn.addEventListener('click', () => {
+        const n = expenses.length;
+        if (!n) return;
+        const what = n === 1 ? 'el gasto registrado' : `los ${n} gastos registrados`;
+        if (!confirm(`¿Seguro que quieres borrar ${what}?\n\nEsta acción no se puede deshacer.`)) return;
+
+        expenses = [];
+        save();
+        render();
+        historyTitle.focus();
+      });
+
+      // Sincroniza si los datos cambian en otra pestaña
+      window.addEventListener('storage', (ev) => {
+        if (ev.key === STORAGE_KEY || ev.key === null) {
+          expenses = load();
+          render();
+        }
+      });
+
+      // Recalcula el total mensual al volver a la pestaña (por si ha cambiado el mes)
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) render();
+      });
+
+      // ---------- Inicio ----------
+      CATEGORIES.forEach((c) => fields.category.add(new Option(c.name, c.name)));
+      fields.date.value = toISODate(new Date());
+      expenses = load();
+      render();
+
+      // Permite abrir la app sin conexión cuando se sirve desde una web (https)
+      if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      }
+    })();
+  </script>
+</body>
+</html>
