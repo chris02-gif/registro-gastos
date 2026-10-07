@@ -255,6 +255,19 @@
       flex-wrap: wrap; gap: 12px; margin-bottom: 12px;
     }
     .history-head h2:focus { outline: none; }
+    .history-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; min-width: 0; }
+
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      min-height: 30px; padding: 3px 10px 3px 12px;
+      border: 1px solid var(--border-strong); border-radius: 999px;
+      background: var(--surface-2);
+      font-size: .8rem; font-weight: 600; cursor: pointer;
+      transition: border-color .15s ease;
+    }
+    .chip:hover { border-color: var(--accent); }
+    .chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+    .chip-x { font-size: 1.05rem; line-height: 1; color: var(--muted); }
 
     .empty {
       padding: 40px 16px; text-align: center; color: var(--muted);
@@ -292,11 +305,14 @@
 
     /* ---------- Resumen por meses ---------- */
     .stack { display: grid; gap: 20px; align-content: start; min-width: 0; }
-    .months-card h2 { margin-bottom: 4px; }
+    .months-card h2 { margin-bottom: 2px; }
+    .card-hint { margin-bottom: 8px; font-size: .85rem; color: var(--muted); }
     .month-list {
-      list-style: none; margin: 0; padding: 0;
-      display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px;
+      display: grid; grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: 16px; row-gap: 2px;
+      margin: 0 -10px; /* el fondo de cada fila sobresale un poco; el texto queda alineado con el título */
     }
+    /* Cada mes es un botón que filtra el historial */
     .month-row {
       grid-column: 1 / -1;
       display: grid;
@@ -304,14 +320,25 @@
       align-items: center;
       column-gap: 16px;
       row-gap: 8px;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border);
+      width: 100%;
+      margin: 0;
+      padding: 12px 10px;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      transition: background-color .15s ease, box-shadow .15s ease;
     }
     /* Todas las filas comparten la columna de importes, así las barras tienen el mismo fondo */
     @supports (grid-template-columns: subgrid) {
       .month-row { grid-template-columns: subgrid; }
     }
-    .month-row:last-child { border-bottom: 0; padding-bottom: 0; }
+    .month-row:hover { background: var(--surface-2); }
+    .month-row[aria-pressed="true"] { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-strong); }
+    .month-row:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
+    .month-row:hover .month-bar,
+    .month-row[aria-pressed="true"] .month-bar { background: var(--border); }
     .month-name { font-weight: 600; }
     .month-total { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
     .month-count { font-size: .85rem; color: var(--muted); text-align: right; white-space: nowrap; }
@@ -462,12 +489,18 @@
       <div class="stack">
         <section class="card months-card" id="months-card" aria-labelledby="months-title" hidden>
           <h2 id="months-title">Resumen por meses</h2>
-          <ul class="month-list" id="month-list"></ul>
+          <p class="card-hint">Toca un mes para ver solo sus gastos.</p>
+          <div class="month-list" id="month-list"></div>
         </section>
 
         <section class="card history-card" aria-labelledby="history-title">
           <div class="history-head">
-            <h2 id="history-title" tabindex="-1">Historial de gastos</h2>
+            <div class="history-title">
+              <h2 id="history-title" tabindex="-1">Historial de gastos</h2>
+              <button type="button" id="filter-chip" class="chip" hidden>
+                <span id="filter-label"></span><span class="chip-x" aria-hidden="true">×</span>
+              </button>
+            </div>
             <button type="button" id="clear-all" class="btn btn-outline-danger">Borrar todos los gastos</button>
           </div>
 
@@ -537,12 +570,15 @@
       const monthMetaEl = $('month-meta');
       const monthsCard = $('months-card');
       const monthList = $('month-list');
+      const filterChip = $('filter-chip');
+      const filterLabel = $('filter-label');
 
       // Cada gasto: { id, cents, concept, date: 'AAAA-MM-DD', category, createdAt }
       // El importe se guarda en céntimos (entero) para evitar errores de redondeo al sumar.
       let expenses = [];
       let highlightId = null;
       let today = ''; // 'AAAA-MM-DD' de la última vez que se comprobó el día
+      let selectedMonth = null; // 'AAAA-MM' para ver solo ese mes en el historial; null = todos
 
       // ---------- Utilidades ----------
       const pad = (n) => String(n).padStart(2, '0');
@@ -570,6 +606,7 @@
 
       const formatMoney = (cents) => money.format(cents / 100);
       const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+      const monthLabel = (key) => capitalize(monthYear.format(fromISODate(`${key}-01`))); // 'AAAA-MM' → 'Octubre de 2026'
       const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
       const categoryColor = (name) =>
         (CATEGORIES.find((c) => c.name === name) || CATEGORIES[CATEGORIES.length - 1]).color;
@@ -665,13 +702,15 @@
 
         const frag = document.createDocumentFragment();
         for (const [key, m] of months) {
-          const [y, mo] = key.split('-').map(Number);
-          const li = document.createElement('li');
-          li.className = 'month-row';
+          const row = document.createElement('button');
+          row.type = 'button';
+          row.className = 'month-row';
+          row.dataset.month = key;
+          row.setAttribute('aria-pressed', String(key === selectedMonth));
 
           const name = document.createElement('span');
           name.className = 'month-name';
-          name.textContent = capitalize(monthYear.format(new Date(y, mo - 1, 1)));
+          name.textContent = monthLabel(key);
           if (key === currentKey) {
             const tag = document.createElement('span');
             tag.className = 'tag';
@@ -694,8 +733,8 @@
           count.className = 'month-count';
           count.textContent = plural(m.count, 'gasto', 'gastos');
 
-          li.append(name, total, bar, count);
-          frag.append(li);
+          row.append(name, total, bar, count);
+          frag.append(row);
         }
         monthList.replaceChildren(frag);
         monthsCard.hidden = months.length === 0;
@@ -717,6 +756,8 @@
           byMonth.set(key, m);
         }
         const current = byMonth.get(monthKey) || { cents: 0, count: 0 };
+        // Si el mes filtrado se ha quedado sin gastos, se vuelve a ver todo
+        if (selectedMonth && !byMonth.has(selectedMonth)) selectedMonth = null;
 
         totalMonthEl.textContent = formatMoney(current.cents);
         monthMetaEl.textContent =
@@ -728,7 +769,8 @@
           : 'Sin gastos registrados';
 
         // Más recientes primero; a igual fecha, el último añadido arriba
-        const sorted = [...expenses].sort(
+        const visible = selectedMonth ? expenses.filter((e) => e.date.startsWith(selectedMonth)) : expenses;
+        const sorted = [...visible].sort(
           (a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0)
         );
         const frag = document.createDocumentFragment();
@@ -740,6 +782,12 @@
         table.hidden = isEmpty;
         emptyState.hidden = !isEmpty;
         clearBtn.disabled = isEmpty;
+
+        filterChip.hidden = !selectedMonth;
+        if (selectedMonth) {
+          filterLabel.textContent = monthLabel(selectedMonth);
+          filterChip.setAttribute('aria-label', `Quitar el filtro de ${monthLabel(selectedMonth)} y ver todos los gastos`);
+        }
       }
 
       // ---------- Validación ----------
@@ -790,6 +838,8 @@
         const item = { id: newId(), ...expense, createdAt: Date.now() };
         expenses.push(item);
         highlightId = item.id;
+        // Si se está viendo otro mes, se quita el filtro para que el gasto nuevo se vea en la lista
+        if (selectedMonth && !item.date.startsWith(selectedMonth)) selectedMonth = null;
         save();
         render();
 
@@ -821,11 +871,29 @@
       clearBtn.addEventListener('click', () => {
         const n = expenses.length;
         if (!n) return;
-        const what = n === 1 ? 'el gasto registrado' : `los ${n} gastos registrados`;
+        const what = (n === 1 ? 'el gasto registrado' : `los ${n} gastos registrados`) +
+          (selectedMonth ? ' (de todos los meses, no solo el que estás viendo)' : '');
         if (!confirm(`¿Seguro que quieres borrar ${what}?\n\nEsta acción no se puede deshacer.`)) return;
 
         expenses = [];
         save();
+        render();
+        historyTitle.focus();
+      });
+
+      // Tocar un mes del resumen filtra el historial; tocarlo otra vez lo quita
+      monthList.addEventListener('click', (ev) => {
+        const row = ev.target.closest('button[data-month]');
+        if (!row) return;
+        const key = row.dataset.month;
+        selectedMonth = selectedMonth === key ? null : key;
+        render();
+        const again = monthList.querySelector(`button[data-month="${key}"]`);
+        if (again) again.focus();
+      });
+
+      filterChip.addEventListener('click', () => {
+        selectedMonth = null;
         render();
         historyTitle.focus();
       });
